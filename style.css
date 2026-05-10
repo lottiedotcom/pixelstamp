@@ -101,13 +101,14 @@ button#generate:active {
     border-left: 2px solid #404040;
     border-right: 2px solid #ffffff;
     border-bottom: 2px solid #ffffff;
-    min-height: 99px; /* Updated for square size */
+    min-height: 99px; /* Adjusted for square 99x99 size */
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
 #result {
+    /* Scale it up visually so users can see the pixel art clearly */
     transform: scale(2);
     image-rendering: pixelated; 
 }
