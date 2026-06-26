@@ -1,122 +1,193 @@
-body {
-    background-color: #008080;
-    font-family: 'Tahoma', 'Segoe UI', sans-serif;
-    color: #000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-}
+document.getElementById('generate').addEventListener('click', async () => {
+    const fileInput = document.getElementById('imageUpload');
+    const textInput = document.getElementById('blinkyText').value;
+    const isGif = document.getElementById('formatGif').checked;
+    const status = document.getElementById('status');
 
-.window {
-    background: #c0c0c0;
-    border-top: 2px solid #ffffff;
-    border-left: 2px solid #ffffff;
-    border-right: 2px solid #808080;
-    border-bottom: 2px solid #808080;
-    width: 350px;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
-}
+    if (!fileInput.files || !fileInput.files[0]) {
+        alert('Please upload an image first!');
+        return;
+    }
 
-.title-bar {
-    background: #000080;
-    color: white;
-    padding: 3px 5px;
-    font-weight: bold;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 14px;
-}
+    status.style.color = '#000080';
+    status.innerText = "Loading assets...";
 
-.window-controls .btn-sm {
-    background: #c0c0c0;
-    border-top: 1px solid #ffffff;
-    border-left: 1px solid #ffffff;
-    border-right: 1px solid #000000;
-    border-bottom: 1px solid #000000;
-    font-size: 10px;
-    padding: 1px 4px;
-    cursor: default;
-}
+    try {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = async function() {
+                status.innerText = "Drawing stamp...";
+                
+                const width = 99;
+                const height = 99;
 
-.content {
-    padding: 15px;
-    font-size: 13px;
-}
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.imageSmoothingEnabled = false;
 
-.form-group {
-    margin-bottom: 15px;
-}
+                // We pass 'isStatic' to handle true PNG transparency vs GIF magenta chroma-key
+                const drawFrame = (showText, shineOffset, isStatic = false) => {
+                    
+                    // Base background
+                    if (!isStatic) {
+                        ctx.fillStyle = '#ff00ff';
+                        ctx.fillRect(0, 0, width, height);
+                    } else {
+                        ctx.clearRect(0, 0, width, height);
+                    }
 
-input[type="file"], input[type="text"] {
-    width: 100%;
-    margin-top: 5px;
-    box-sizing: border-box;
-}
+                    // Outer border
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, width, height);
 
-input[type="text"] {
-    border-top: 2px solid #808080;
-    border-left: 2px solid #808080;
-    border-right: 2px solid #ffffff;
-    border-bottom: 2px solid #ffffff;
-    padding: 4px;
-    background: #ffffff;
-}
+                    // Inner border
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(1, 1, width - 2, height - 2);
 
-button#generate {
-    background: #c0c0c0;
-    border-top: 2px solid #ffffff;
-    border-left: 2px solid #ffffff;
-    border-right: 2px solid #808080;
-    border-bottom: 2px solid #808080;
-    padding: 6px 12px;
-    font-weight: bold;
-    cursor: pointer;
-    width: 100%;
-}
+                    // Image Crop & Scale
+                    const innerW = width - 4;
+                    const innerH = height - 4;
+                    const scale = Math.max(innerW / img.width, innerH / img.height);
+                    const drawW = img.width * scale;
+                    const drawH = img.height * scale;
+                    const drawX = 2 + (innerW / 2) - (drawW / 2);
+                    const drawY = 2 + (innerH / 2) - (drawH / 2);
+                    
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(2, 2, innerW, innerH);
+                    ctx.clip(); 
+                    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+                    ctx.restore();
 
-button#generate:active {
-    border-top: 2px solid #808080;
-    border-left: 2px solid #808080;
-    border-right: 2px solid #ffffff;
-    border-bottom: 2px solid #ffffff;
-}
+                    // Perforations
+                    const holeSize = 3;
+                    const spacing = 10;
+                    
+                    for (let x = 3; x < width; x += spacing) {
+                        if (!isStatic) {
+                            ctx.fillStyle = '#ff00ff';
+                            ctx.fillRect(x, 0, holeSize, holeSize);
+                            ctx.fillRect(x, height - holeSize, holeSize, holeSize);
+                        } else {
+                            ctx.clearRect(x, 0, holeSize, holeSize);
+                            ctx.clearRect(x, height - holeSize, holeSize, holeSize);
+                        }
+                    }
+                    for (let y = 3; y < height; y += spacing) {
+                        if (!isStatic) {
+                            ctx.fillStyle = '#ff00ff';
+                            ctx.fillRect(0, y, holeSize, holeSize);
+                            ctx.fillRect(width - holeSize, y, holeSize, holeSize);
+                        } else {
+                            ctx.clearRect(0, y, holeSize, holeSize);
+                            ctx.clearRect(width - holeSize, y, holeSize, holeSize);
+                        }
+                    }
 
-#status {
-    color: #000080;
-    font-weight: bold;
-    text-align: center;
-    height: 15px;
-    margin: 10px 0;
-}
+                    // Shine effect (skipped if static)
+                    if (shineOffset !== null) {
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                        ctx.beginPath();
+                        ctx.moveTo(shineOffset, 2);
+                        ctx.lineTo(shineOffset + 20, 2);
+                        ctx.lineTo(shineOffset - 40, height - 2);
+                        ctx.lineTo(shineOffset - 60, height - 2);
+                        ctx.fill();
+                    }
 
-.preview-container {
-    text-align: center;
-    margin-top: 10px;
-    padding: 15px;
-    background: #808080;
-    border-top: 2px solid #404040;
-    border-left: 2px solid #404040;
-    border-right: 2px solid #ffffff;
-    border-bottom: 2px solid #ffffff;
-    min-height: 99px; 
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
+                    // Text
+                    if (showText && textInput) {
+                        ctx.font = '16px "VT323", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        const txtX = width / 2;
+                        const txtY = height / 2 + 2;
 
-#result {
-    transform: scale(2);
-    image-rendering: pixelated; 
-}
+                        ctx.fillStyle = 'black';
+                        ctx.fillText(textInput, txtX + 1, txtY + 1);
+                        ctx.fillText(textInput, txtX - 1, txtY - 1);
+                        ctx.fillText(textInput, txtX + 1, txtY - 1);
+                        ctx.fillText(textInput, txtX - 1, txtY + 1);
+                        
+                        ctx.fillStyle = 'white';
+                        ctx.fillText(textInput, txtX, txtY);
+                    }
+                };
 
-#download {
-    display: block;
-    text-align: center;
-    margin-top: 20px;
-    color: #0000ff;
-    text-decoration: underline;
-    cursor: pointer;
-}
+                if (isGif) {
+                    // --- ANIMATED GIF LOGIC ---
+                    try {
+                        const workerResponse = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+                        if (!workerResponse.ok) throw new Error("Could not load GIF worker");
+                        const workerStr = await workerResponse.text();
+                        const workerBlob = new Blob([workerStr], { type: 'application/javascript' });
+                        const workerUrl = URL.createObjectURL(workerBlob);
+
+                        const gif = new GIF({
+                            workers: 2,
+                            quality: 1,
+                            width: width,
+                            height: height,
+                            workerScript: workerUrl,
+                            transparent: 0xFF00FF 
+                        });
+
+                        drawFrame(true, null, false); gif.addFrame(ctx, {copy: true, delay: 600});
+                        drawFrame(false, 30, false);  gif.addFrame(ctx, {copy: true, delay: 80});
+                        drawFrame(false, 70, false);  gif.addFrame(ctx, {copy: true, delay: 80});
+                        drawFrame(false, 110, false); gif.addFrame(ctx, {copy: true, delay: 80});
+                        drawFrame(false, 150, false); gif.addFrame(ctx, {copy: true, delay: 80});
+                        drawFrame(true, null, false); gif.addFrame(ctx, {copy: true, delay: 600});
+                        drawFrame(false, null, false);gif.addFrame(ctx, {copy: true, delay: 400});
+
+                        status.innerText = "Encoding GIF...";
+
+                        gif.on('finished', function(blob) {
+                            status.innerText = "Done!";
+                            const resultImg = document.getElementById('result');
+                            resultImg.src = URL.createObjectURL(blob);
+                            
+                            const dlLink = document.getElementById('download');
+                            dlLink.href = resultImg.src;
+                            dlLink.download = 'my-square-stamp.gif';
+                            dlLink.innerText = 'Download .GIF';
+                            dlLink.style.display = 'block';
+                        });
+
+                        gif.render();
+                    } catch (renderError) {
+                        status.style.color = 'red';
+                        status.innerText = "Error building GIF.";
+                        console.error(renderError);
+                    }
+                } else {
+                    // --- STATIC PNG LOGIC ---
+                    drawFrame(true, null, true); // Draw one frame with text, no shine, true transparency
+                    
+                    const dataUrl = canvas.toDataURL('image/png');
+                    
+                    status.innerText = "Done!";
+                    const resultImg = document.getElementById('result');
+                    resultImg.src = dataUrl;
+                    
+                    const dlLink = document.getElementById('download');
+                    dlLink.href = dataUrl;
+                    dlLink.download = 'my-square-stamp.png';
+                    dlLink.innerText = 'Download .PNG';
+                    dlLink.style.display = 'block';
+                }
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+
+    } catch (err) {
+        status.style.color = 'red';
+        status.innerText = "Error: " + err.message;
+        console.error(err);
+    }
+});
