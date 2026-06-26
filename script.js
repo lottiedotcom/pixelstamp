@@ -1,6 +1,7 @@
 document.getElementById('generate').addEventListener('click', async () => {
     const fileInput = document.getElementById('imageUpload');
     const textInput = document.getElementById('blinkyText').value;
+    const isGif = document.getElementById('formatGif').checked;
     const status = document.getElementById('status');
 
     if (!fileInput.files || !fileInput.files[0]) {
@@ -12,31 +13,14 @@ document.getElementById('generate').addEventListener('click', async () => {
     status.innerText = "Loading assets...";
 
     try {
-        // Fetch worker reliably
-        const workerResponse = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
-        if (!workerResponse.ok) throw new Error("Could not load GIF worker");
-        const workerStr = await workerResponse.text();
-        const workerBlob = new Blob([workerStr], { type: 'application/javascript' });
-        const workerUrl = URL.createObjectURL(workerBlob);
-
-        // Process image safely using FileReader
         const reader = new FileReader();
         reader.onload = function(event) {
             const img = new Image();
-            img.onload = function() {
-                status.innerText = "Drawing frames...";
+            img.onload = async function() {
+                status.innerText = "Drawing stamp...";
                 
                 const width = 99;
                 const height = 99;
-
-                const gif = new GIF({
-                    workers: 2,
-                    quality: 1,
-                    width: width,
-                    height: height,
-                    workerScript: workerUrl,
-                    transparent: 0xFF00FF // Magenta chroma-key using exact hex integer
-                });
 
                 const canvas = document.createElement('canvas');
                 canvas.width = width;
@@ -44,10 +28,16 @@ document.getElementById('generate').addEventListener('click', async () => {
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 ctx.imageSmoothingEnabled = false;
 
-                const drawFrame = (showText, shineOffset) => {
-                    // Transparent BG base
-                    ctx.fillStyle = '#ff00ff';
-                    ctx.fillRect(0, 0, width, height);
+                // We pass 'isStatic' to handle true PNG transparency vs GIF magenta chroma-key
+                const drawFrame = (showText, shineOffset, isStatic = false) => {
+                    
+                    // Base background
+                    if (!isStatic) {
+                        ctx.fillStyle = '#ff00ff';
+                        ctx.fillRect(0, 0, width, height);
+                    } else {
+                        ctx.clearRect(0, 0, width, height);
+                    }
 
                     // Outer border
                     ctx.fillStyle = '#000000';
@@ -74,20 +64,31 @@ document.getElementById('generate').addEventListener('click', async () => {
                     ctx.restore();
 
                     // Perforations
-                    ctx.fillStyle = '#ff00ff';
                     const holeSize = 3;
                     const spacing = 10;
                     
                     for (let x = 3; x < width; x += spacing) {
-                        ctx.fillRect(x, 0, holeSize, holeSize);
-                        ctx.fillRect(x, height - holeSize, holeSize, holeSize);
+                        if (!isStatic) {
+                            ctx.fillStyle = '#ff00ff';
+                            ctx.fillRect(x, 0, holeSize, holeSize);
+                            ctx.fillRect(x, height - holeSize, holeSize, holeSize);
+                        } else {
+                            ctx.clearRect(x, 0, holeSize, holeSize);
+                            ctx.clearRect(x, height - holeSize, holeSize, holeSize);
+                        }
                     }
                     for (let y = 3; y < height; y += spacing) {
-                        ctx.fillRect(0, y, holeSize, holeSize);
-                        ctx.fillRect(width - holeSize, y, holeSize, holeSize);
+                        if (!isStatic) {
+                            ctx.fillStyle = '#ff00ff';
+                            ctx.fillRect(0, y, holeSize, holeSize);
+                            ctx.fillRect(width - holeSize, y, holeSize, holeSize);
+                        } else {
+                            ctx.clearRect(0, y, holeSize, holeSize);
+                            ctx.clearRect(width - holeSize, y, holeSize, holeSize);
+                        }
                     }
 
-                    // Shine effect
+                    // Shine effect (skipped if static)
                     if (shineOffset !== null) {
                         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
                         ctx.beginPath();
@@ -98,7 +99,7 @@ document.getElementById('generate').addEventListener('click', async () => {
                         ctx.fill();
                     }
 
-                    // Blinky Text
+                    // Text
                     if (showText && textInput) {
                         ctx.font = '16px "VT323", monospace';
                         ctx.textAlign = 'center';
@@ -117,34 +118,67 @@ document.getElementById('generate').addEventListener('click', async () => {
                     }
                 };
 
-                // Build animation
-                try {
-                    drawFrame(true, null); gif.addFrame(ctx, {copy: true, delay: 600});
-                    drawFrame(false, 30);  gif.addFrame(ctx, {copy: true, delay: 80});
-                    drawFrame(false, 70);  gif.addFrame(ctx, {copy: true, delay: 80});
-                    drawFrame(false, 110); gif.addFrame(ctx, {copy: true, delay: 80});
-                    drawFrame(false, 150); gif.addFrame(ctx, {copy: true, delay: 80});
-                    drawFrame(true, null); gif.addFrame(ctx, {copy: true, delay: 600});
-                    drawFrame(false, null);gif.addFrame(ctx, {copy: true, delay: 400});
+                if (isGif) {
+                    // --- ANIMATED GIF LOGIC ---
+                    try {
+                        const workerResponse = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+                        if (!workerResponse.ok) throw new Error("Could not load GIF worker");
+                        const workerStr = await workerResponse.text();
+                        const workerBlob = new Blob([workerStr], { type: 'application/javascript' });
+                        const workerUrl = URL.createObjectURL(workerBlob);
 
-                    status.innerText = "Encoding GIF...";
+                        const gif = new GIF({
+                            workers: 2,
+                            quality: 1,
+                            width: width,
+                            height: height,
+                            workerScript: workerUrl,
+                            transparent: 0xFF00FF 
+                        });
 
-                    gif.on('finished', function(blob) {
-                        status.innerText = "Done!";
-                        const resultImg = document.getElementById('result');
-                        resultImg.src = URL.createObjectURL(blob);
-                        
-                        const dlLink = document.getElementById('download');
-                        dlLink.href = resultImg.src;
-                        dlLink.download = 'my-square-stamp.gif';
-                        dlLink.style.display = 'block';
-                    });
+                        drawFrame(true, null, false); gif.addFrame(ctx, {copy: true, delay: 600});
+                        drawFrame(false, 30, false);  gif.addFrame(ctx, {copy: true, delay: 80});
+                        drawFrame(false, 70, false);  gif.addFrame(ctx, {copy: true, delay: 80});
+                        drawFrame(false, 110, false); gif.addFrame(ctx, {copy: true, delay: 80});
+                        drawFrame(false, 150, false); gif.addFrame(ctx, {copy: true, delay: 80});
+                        drawFrame(true, null, false); gif.addFrame(ctx, {copy: true, delay: 600});
+                        drawFrame(false, null, false);gif.addFrame(ctx, {copy: true, delay: 400});
 
-                    gif.render();
-                } catch (renderError) {
-                    status.style.color = 'red';
-                    status.innerText = "Error building GIF frames.";
-                    console.error(renderError);
+                        status.innerText = "Encoding GIF...";
+
+                        gif.on('finished', function(blob) {
+                            status.innerText = "Done!";
+                            const resultImg = document.getElementById('result');
+                            resultImg.src = URL.createObjectURL(blob);
+                            
+                            const dlLink = document.getElementById('download');
+                            dlLink.href = resultImg.src;
+                            dlLink.download = 'my-square-stamp.gif';
+                            dlLink.innerText = 'Download .GIF';
+                            dlLink.style.display = 'block';
+                        });
+
+                        gif.render();
+                    } catch (renderError) {
+                        status.style.color = 'red';
+                        status.innerText = "Error building GIF.";
+                        console.error(renderError);
+                    }
+                } else {
+                    // --- STATIC PNG LOGIC ---
+                    drawFrame(true, null, true); // Draw one frame with text, no shine, true transparency
+                    
+                    const dataUrl = canvas.toDataURL('image/png');
+                    
+                    status.innerText = "Done!";
+                    const resultImg = document.getElementById('result');
+                    resultImg.src = dataUrl;
+                    
+                    const dlLink = document.getElementById('download');
+                    dlLink.href = dataUrl;
+                    dlLink.download = 'my-square-stamp.png';
+                    dlLink.innerText = 'Download .PNG';
+                    dlLink.style.display = 'block';
                 }
             };
             img.src = event.target.result;
