@@ -12,7 +12,7 @@
 
 <div class="window">
     <div class="title-bar">
-        <span>Square_Stamp_Maker.exe</span>
+        <span>Square_Stamp_Maker_v4.exe</span>
         <div class="window-controls">
             <button class="btn-sm">_</button>
             <button class="btn-sm">X</button>
@@ -32,6 +32,12 @@
             <input type="text" id="blinkyText" placeholder="e.g. L0VE" maxlength="10">
         </div>
 
+        <div class="form-group">
+            <label>Output Format:</label><br>
+            <label><input type="radio" name="format" id="formatGif" value="gif" checked> Animated GIF</label>
+            <label><input type="radio" name="format" id="formatPng" value="png"> Static PNG</label>
+        </div>
+
         <button id="generate">Generate Stamp</button>
         <p id="status"></p>
 
@@ -39,7 +45,7 @@
             <img id="result" alt="Your stamp will appear here" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=">
         </div>
         
-        <a id="download" style="display: none;">Download .GIF</a>
+        <a id="download" style="display: none;">Download File</a>
     </div>
 </div>
 
